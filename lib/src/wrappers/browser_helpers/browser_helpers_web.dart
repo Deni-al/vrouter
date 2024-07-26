@@ -1,5 +1,7 @@
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'dart:js_interop';
+
+import 'package:web/web.dart' as web; // Add
 
 import 'package:vrouter/src/vrouter_core.dart';
 import 'package:vrouter/src/vrouter_scope.dart';
@@ -17,9 +19,9 @@ class BrowserHelpers {
   static String getPathAndQuery({required VRouterMode routerMode}) {
     // If the mode is hash, it's easy we just take whatever is after the hash
     if (routerMode == VRouterMode.hash) {
-      return html.window.location.hash.isEmpty
+      return web.window.location.hash.isEmpty
           ? ''
-          : html.window.location.hash.substring(1);
+          : web.window.location.hash.substring(1);
     }
 
     // else, we have to be careful with the basePath
@@ -38,17 +40,17 @@ class BrowserHelpers {
   }
 
   /// Allows us to tell the browser to navigate in the browser history
-  static void browserGo(int delta) => html.window.history.go(delta);
+  static void browserGo(int delta) => web.window.history.go(delta);
 
   /// Fires an event when the url changes
-  static Stream<html.PopStateEvent> get onBrowserPopState =>
-      html.window.onPopState;
+  static Stream<web.PopStateEvent> get onBrowserPopState =>
+      web.window.onPopState;
 
   /// Fires an event when a page will be unloaded
   ///
   /// This mainly occurs when a user types a url in the browser on closes the browser
-  static Stream<html.Event> get onBrowserBeforeUnload =>
-      html.window.onBeforeUnload;
+  static web.OnBeforeUnloadEventHandler? get onBrowserBeforeUnload =>
+      web.window.onbeforeunload;
 
   /// Pushes a url which is from another website
   ///
@@ -57,9 +59,9 @@ class BrowserHelpers {
       {required bool openNewTab}) async {
     final targetUrl = url.startsWith('http') ? url : 'http://$url';
     if (openNewTab) {
-      html.window.open(targetUrl, '_blank');
+      web.window.open(targetUrl, '_blank');
     } else {
-      html.window.location.href = targetUrl;
+      web.window.location.href = targetUrl;
     }
   }
 
@@ -75,11 +77,11 @@ class BrowserHelpers {
   }) {
     // Either push or replace depending on [isReplacement]
     final historyMethod = isReplacement
-        ? html.window.history.replaceState
-        : html.window.history.pushState;
+        ? web.window.history.replaceState
+        : web.window.history.pushState;
 
     historyMethod(
-      html.window.history.state, // Note that we don't change the historyState
+      web.window.history.state, // Note that we don't change the historyState
       'flutter',
       _getBasePath() +
           ((routerMode == VRouterMode.hash) ? '#/' : '') +
@@ -92,13 +94,13 @@ class BrowserHelpers {
   /// The base path is:
   ///   protocol + '//' + host + basePath (uri from the first <base> tag)
   static String _getBasePath() {
-    final baseTags = html.document.getElementsByTagName('base');
+    final baseTags = web.document.getElementsByTagName('base');
 
-    return baseTags.isEmpty ? '/' : (baseTags[0].baseUri ?? '/');
+    return baseTags.length == 0 ? '/' : (baseTags.item(0)?.baseURI ?? '/');
   }
 
   /// Returns the entire url
-  static String _getEntireUrl() => html.window.location.href;
+  static String _getEntireUrl() => web.window.location.href;
 
   /// Get the number of history entries for this app
   ///
@@ -106,7 +108,7 @@ class BrowserHelpers {
   /// Note that this is NOT the history length of the browser
   static int getHistoryLength({required int applicationInstanceId}) {
     final String? historyLengthString =
-        html.window.localStorage['$applicationInstanceId'];
+        web.window.localStorage['$applicationInstanceId'];
 
     if (historyLengthString == null) {
       throw Exception('Tried to get historyLength but it has not been set');
@@ -123,8 +125,7 @@ class BrowserHelpers {
     required int applicationInstanceId,
     required int historyLength,
   }) {
-    html.window.localStorage
-        .addAll({'$applicationInstanceId': '$historyLength'});
+    web.window.localStorage.add({'$applicationInstanceId': '$historyLength'}.toJSBox);
   }
 
   /// This replace the current history state by the new given one
@@ -182,7 +183,7 @@ class BrowserHelpers {
   }
 
   static Map<String, dynamic> _getHistoryState() {
-    var globalState = html.window.history.state;
+    var globalState = web.window.history.state as Map<String, dynamic>?;
 
     // If no history state has ever been created and
     // Flutter has not been initialized
@@ -202,18 +203,18 @@ class BrowserHelpers {
   }
 
   static void _setHistoryState(Map<String, dynamic> historyState) {
-    var globalState = html.window.history.state ?? <String, dynamic>{};
+    var globalState =  web.window.history.state as Map<String, dynamic>? ?? <String, dynamic>{};
 
     // If Flutter has not yet restored the history state
-    if (!globalState?.containsKey('state')) {
-      return html.window.history.replaceState(historyState, 'flutter', null);
+    if (!globalState.containsKey('state')) {
+      return web.window.history.replaceState(historyState.toJSBox, 'flutter', null);
     }
 
     // If a history state exist and Flutter has restored it
     globalState['state'] = historyState;
     globalState['serialCount'] =
         0; // Reset to 0 to avoid issues with flutter hot reload
-    return html.window.history.replaceState(globalState, 'flutter', null);
+    return web.window.history.replaceState(globalState.toJSBox, 'flutter', null);
   }
 
   static Map<String, dynamic> _mapDynamicDynamicToMapStringDynamic(
